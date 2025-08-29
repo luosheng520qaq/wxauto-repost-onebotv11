@@ -5,4 +5,4 @@
 """
 
 __version__ = "1.0.0"
-__author__ = "WxAuto OneBotV11 Framework"
+__author__ = "汐灿"
