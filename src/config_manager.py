@@ -11,6 +11,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import threading
 
+# 尝试导入AstrBot日志记录器
+try:
+    from astrbot.api import logger
+except ImportError:
+    # 在独立运行模式下，创建一个简单的日志记录器
+    class SimpleLogger:
+        def info(self, msg): print(f"[INFO] {msg}")
+        def error(self, msg): print(f"[ERROR] {msg}")
+        def warning(self, msg): print(f"[WARNING] {msg}")
+        def debug(self, msg): print(f"[DEBUG] {msg}")
+    logger = SimpleLogger()
+
 class ConfigManager:
     """配置管理器"""
     
@@ -93,7 +105,7 @@ class ConfigManager:
                 return self.config_data.copy()
                 
             except Exception as e:
-                print(f"加载配置文件失败: {e}")
+                logger.error(f"加载配置文件失败: {e}")
                 self.config_data = self.default_config.copy()
                 return self.config_data.copy()
                 
@@ -114,7 +126,7 @@ class ConfigManager:
                 return True
                 
             except Exception as e:
-                print(f"保存配置文件失败: {e}")
+                logger.error(f"保存配置文件失败: {e}")
                 return False
                 
     def get(self, key: str, default: Any = None) -> Any:
@@ -163,7 +175,7 @@ class ConfigManager:
                 return True
                 
             except Exception as e:
-                print(f"设置配置值失败: {e}")
+                logger.error(f"设置配置值失败: {e}")
                 return False
                 
     def update(self, updates: Dict[str, Any]) -> bool:
@@ -180,7 +192,7 @@ class ConfigManager:
                 self.config_data = self._merge_config(self.config_data, updates)
                 return True
             except Exception as e:
-                print(f"批量更新配置失败: {e}")
+                logger.error(f"批量更新配置失败: {e}")
                 return False
                 
     def get_all(self) -> Dict[str, Any]:
@@ -202,7 +214,7 @@ class ConfigManager:
                 self.config_data = self.default_config.copy()
                 return self.save_config()
             except Exception as e:
-                print(f"重置配置失败: {e}")
+                logger.error(f"重置配置失败: {e}")
                 return False
                 
     def add_monitor_user(self, user_data) -> bool:
@@ -257,7 +269,7 @@ class ConfigManager:
                 monitor_users.pop(i)
                 return self.set('wechat.monitor_users', monitor_users)
         
-        return True
+        return False  # 未找到匹配的用户
         
     def get_monitor_users(self) -> List:
         """获取监听用户列表

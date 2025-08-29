@@ -14,6 +14,18 @@ import base64
 import requests
 from queue import Queue, Empty
 
+# 尝试导入AstrBot日志记录器
+try:
+    from astrbot.api import logger
+except ImportError:
+    # 在独立运行模式下，创建一个简单的日志记录器
+    class SimpleLogger:
+        def info(self, msg): print(f"[INFO] {msg}")
+        def error(self, msg): print(f"[ERROR] {msg}")
+        def warning(self, msg): print(f"[WARNING] {msg}")
+        def debug(self, msg): print(f"[DEBUG] {msg}")
+    logger = SimpleLogger()
+
 class MessageHandler:
     """消息回复处理器"""
     
@@ -45,7 +57,7 @@ class MessageHandler:
         
         # 文件下载缓存目录
         project_root = Path(__file__).parent.parent
-        self.download_cache_dir = project_root / self.config_manager.get('message.download_cache_dir', 'cache/downloads')
+        self.download_cache_dir = project_root / self.config_manager.get('message.file_cache_dir', 'cache/downloads')
         self.download_cache_dir.mkdir(parents=True, exist_ok=True)
         
     def start(self) -> bool:
@@ -55,7 +67,7 @@ class MessageHandler:
             是否启动成功
         """
         try:
-            print("启动消息处理器")
+            logger.info("启动消息处理器")
             
             self.is_running = True
             
@@ -73,12 +85,12 @@ class MessageHandler:
             return True
             
         except Exception as e:
-            print(f"启动消息处理器失败: {e}")
+            logger.error(f"启动消息处理器失败: {e}")
             return False
             
     def stop(self):
         """停止消息处理器"""
-        print("🛑 停止消息处理器")
+        logger.info("🛑 停止消息处理器")
         
         self.is_running = False
         
@@ -93,7 +105,7 @@ class MessageHandler:
             wechat_msg: 微信消息
         """
         try:
-            print(f"🔄 处理消息: {wechat_msg.get('user_name', 'unknown')} [{wechat_msg.get('message_type', 'text')}]")
+            logger.info(f"🔄 处理消息: {wechat_msg.get('user_name', 'unknown')} [{wechat_msg.get('message_type', 'text')}]")
             
             # 检查是否是监听的用户
             user_name = wechat_msg.get('user_name', '')
@@ -193,7 +205,7 @@ class MessageHandler:
                 self._handle_reply_message(message)
                 
         except Exception as e:
-            print(f"处理消息失败: {e}")
+            logger.error(f"处理消息失败: {e}")
             
     def _handle_api_request(self, request: Dict[str, Any]):
         """处理API请求
@@ -206,14 +218,14 @@ class MessageHandler:
             params = request.get('params', {})
             echo = request.get('echo', '')
             
-            print(f"处理API请求: {action}")
+            logger.info(f"处理API请求: {action}")
             
             if action == 'send_private_msg':
                 # 发送私聊消息
                 self._handle_send_private_msg(params, echo)
             elif action == 'send_group_msg':
                 # 发送群消息（暂不支持群聊）
-                print(f"群消息发送暂不支持: group_id={params.get('group_id', '')}")
+                logger.warning(f"群消息发送暂不支持: group_id={params.get('group_id', '')}")
                 self.websocket_client.send_api_response(echo, None, 1404, "group message not supported")
             elif action == 'send_msg':
                 # 通用发送消息接口
@@ -234,11 +246,11 @@ class MessageHandler:
                 self.websocket_client.send_api_response(echo, data)
             else:
                 # 未支持的API
-                print(f"未支持的API请求: {action}")
+                logger.warning(f"未支持的API请求: {action}")
                 self.websocket_client.send_api_response(echo, None, 1404, "failed")
                 
         except Exception as e:
-            print(f"处理API请求失败: {e}")
+            logger.error(f"处理API请求失败: {e}")
             if 'echo' in locals():
                 self.websocket_client.send_api_response(echo, None, 1500, "failed")
                 
@@ -259,15 +271,15 @@ class MessageHandler:
             elif message_type == 'group':
                 # 群消息（暂不支持）
                 group_id = params.get('group_id', '')
-                print(f"群消息发送暂不支持: group_id={group_id}")
+                logger.warning(f"群消息发送暂不支持: group_id={group_id}")
                 self.websocket_client.send_api_response(echo, None, 1404, "group message not supported")
             else:
                 # 未知消息类型
-                print(f"未知消息类型: {message_type}")
+                logger.warning(f"未知消息类型: {message_type}")
                 self.websocket_client.send_api_response(echo, None, 1400, "invalid message_type")
                 
         except Exception as e:
-            print(f"处理send_msg请求失败: {e}")
+            logger.error(f"处理send_msg请求失败: {e}")
             self.websocket_client.send_api_response(echo, None, 1500, str(e))
     
     def _handle_send_private_msg(self, params: Dict[str, Any], echo: str):
@@ -293,7 +305,7 @@ class MessageHandler:
             # 查找对应的微信用户
             target_user = self._find_user_by_id(user_id)
             if not target_user:
-                print(f"⚠️  未找到用户ID: {user_id}")
+                logger.warning(f"⚠️  未找到用户ID: {user_id}")
                 self.websocket_client.send_api_response(echo, None, 1404, "user not found")
                 return
                 
@@ -315,7 +327,7 @@ class MessageHandler:
                 self.websocket_client.send_api_response(echo, None, 1500, "send failed")
                 
         except Exception as e:
-            print(f"处理发送私聊消息失败: {e}")
+            logger.error(f"处理发送私聊消息失败: {e}")
             self.websocket_client.send_api_response(echo, None, 1500, str(e))
             
     def _handle_api_response(self, response: Dict[str, Any]):
@@ -329,10 +341,10 @@ class MessageHandler:
             status = response.get('status', 'unknown')
             retcode = response.get('retcode', -1)
             
-            print(f"收到API响应: echo={echo}, status={status}, retcode={retcode}")
+            logger.info(f"收到API响应: echo={echo}, status={status}, retcode={retcode}")
             
         except Exception as e:
-            print(f"处理API响应失败: {e}")
+            logger.error(f"处理API响应失败: {e}")
             
     def _handle_reply_message(self, message: Dict[str, Any]):
         """处理回复消息
@@ -349,7 +361,7 @@ class MessageHandler:
                 # 查找对应的微信用户
                 target_user = self._find_user_by_id(user_id)
                 if not target_user:
-                    print(f"⚠️  未找到用户ID: {user_id}")
+                    logger.warning(f"⚠️  未找到用户ID: {user_id}")
                     return
                     
                 # 构造微信消息
@@ -362,10 +374,10 @@ class MessageHandler:
                 # 发送到微信
                 self._send_to_wechat(target_user, wechat_msg)
             else:
-                print(f"⚠️  无法解析回复消息: {message}")
+                logger.warning(f"⚠️  无法解析回复消息: {message}")
                 
         except Exception as e:
-            print(f"❌ 处理回复消息失败: {e}")
+            logger.error(f"❌ 处理回复消息失败: {e}")
             
     def _find_user_by_id(self, user_id: str) -> Optional[str]:
         """根据用户ID查找微信用户昵称
@@ -388,7 +400,7 @@ class MessageHandler:
             return user_id
             
         except Exception as e:
-            print(f"查找用户失败: {e}")
+            logger.error(f"查找用户失败: {e}")
             return None
             
     def _send_to_wechat(self, target_user: str, wechat_msg: Dict[str, Any]) -> bool:
@@ -416,7 +428,7 @@ class MessageHandler:
                     image_path = files[0]
                     success = self.wechat_monitor.send_image(target_user, image_path)
                 else:
-                    print("图片消息缺少文件路径")
+                    logger.warning("图片消息缺少文件路径")
                     success = False
                     
             elif message_type == 'file':
@@ -426,7 +438,7 @@ class MessageHandler:
                     file_path = files[0]
                     success = self.wechat_monitor.send_file(target_user, file_path)
                 else:
-                    print("文件消息缺少文件路径")
+                    logger.warning("文件消息缺少文件路径")
                     success = False
                     
             elif message_type == 'voice':
@@ -436,7 +448,7 @@ class MessageHandler:
                     voice_path = files[0]
                     success = self.wechat_monitor.send_message(target_user, voice_path, msg_type='voice')
                 else:
-                    print("语音消息缺少文件路径")
+                    logger.warning("语音消息缺少文件路径")
                     success = False
                     
             else:
@@ -445,14 +457,14 @@ class MessageHandler:
                 success = self.wechat_monitor.send_message(target_user, content)
                 
             if success:
-                print(f"✅ 消息已发送: {target_user}")
+                logger.info(f"✅ 消息已发送: {target_user}")
             else:
-                print(f"❌ 发送失败: {target_user}")
+                logger.error(f"❌ 发送失败: {target_user}")
                 
             return success
             
         except Exception as e:
-            print(f"❌ 发送消息到微信失败: {e}")
+            logger.error(f"❌ 发送消息到微信失败: {e}")
             return False
             
     def _download_file(self, url: str, filename: str = None) -> Optional[str]:
@@ -483,11 +495,11 @@ class MessageHandler:
             with open(file_path, 'wb') as f:
                 f.write(response.content)
                 
-            print(f"文件下载成功: {file_path}")
+            logger.info(f"文件下载成功: {file_path}")
             return str(file_path)
             
         except Exception as e:
-            print(f"下载文件失败: {e}")
+            logger.error(f"下载文件失败: {e}")
             return None
             
     def _parse_onebot_message_content(self, message, user_id: str, auto_escape: bool = False) -> Dict[str, Any]:
@@ -525,7 +537,7 @@ class MessageHandler:
             return wechat_msg
             
         except Exception as e:
-            print(f"❌ 解析OneBotV11消息失败: {e}")
+            logger.error(f"❌ 解析OneBotV11消息失败: {e}")
             # 返回错误消息
             return {
                 'content': f'[消息解析失败: {e}]',
@@ -620,12 +632,12 @@ class MessageHandler:
                 del self.sent_messages[key]
                 
             if expired_keys:
-                print(f"清理了 {len(expired_keys)} 条过期消息记录")
+                logger.info(f"清理了 {len(expired_keys)} 条过期消息记录")
                 
             self.last_cleanup = current_time
             
         except Exception as e:
-            print(f"清理缓存失败: {e}")
+            logger.error(f"清理缓存失败: {e}")
             
     def get_status(self) -> Dict[str, Any]:
         """获取消息处理器状态
@@ -648,14 +660,14 @@ class MessageHandler:
             nickname: 微信昵称
         """
         try:
-            monitored_users = self.config_manager.get('monitor.users', [])
+            monitored_users = self.config_manager.get('wechat.monitor_users', [])
             
             # 检查是否已存在
             for user in monitored_users:
                 if user.get('user_id') == user_id:
                     user['nickname'] = nickname
                     self.config_manager.save_config()
-                    print(f"更新用户映射: {user_id} -> {nickname}")
+                    logger.info(f"更新用户映射: {user_id} -> {nickname}")
                     return
                     
             # 添加新映射
@@ -665,10 +677,10 @@ class MessageHandler:
                 'enabled': True
             })
             
-            self.config_manager.set('monitor.users', monitored_users)
+            self.config_manager.set('wechat.monitor_users', monitored_users)
             self.config_manager.save_config()
             
-            print(f"添加用户映射: {user_id} -> {nickname}")
+            logger.info(f"添加用户映射: {user_id} -> {nickname}")
             
         except Exception as e:
-            print(f"添加用户映射失败: {e}")
+            logger.error(f"添加用户映射失败: {e}")

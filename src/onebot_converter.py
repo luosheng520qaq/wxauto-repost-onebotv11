@@ -8,9 +8,20 @@ OneBotV11消息格式转换器
 import json
 import time
 import base64
+import hashlib
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 import mimetypes
+
+try:
+    from astrbot.api import logger
+except ImportError:
+    # 独立运行模式的简单日志记录器
+    class SimpleLogger:
+        def info(self, msg): print(f"[INFO] {msg}")
+        def error(self, msg): print(f"[ERROR] {msg}")
+        def warning(self, msg): print(f"[WARNING] {msg}")
+    logger = SimpleLogger()
 
 class OneBotV11Converter:
     """OneBotV11协议消息转换器"""
@@ -77,7 +88,7 @@ class OneBotV11Converter:
             return onebot_msg
             
         except Exception as e:
-            print(f"❌ 转换微信消息到OneBotV11格式失败: {e}")
+            logger.error(f"❌ 转换微信消息到OneBotV11格式失败: {e}")
             return self._create_error_message(wechat_msg, str(e))
             
     def onebot_to_wechat(self, onebot_msg: Dict[str, Any]) -> Dict[str, Any]:
@@ -111,7 +122,7 @@ class OneBotV11Converter:
             return wechat_msg
             
         except Exception as e:
-            print(f"❌ 转换OneBotV11消息到微信格式失败: {e}")
+            logger.error(f"❌ 转换OneBotV11消息到微信格式失败: {e}")
             return {
                 'user_id': onebot_msg.get('user_id', ''),
                 'content': f'[消息解析失败: {e}]',
@@ -131,7 +142,13 @@ class OneBotV11Converter:
         # 使用时间戳和用户ID生成唯一ID
         timestamp = wechat_msg.get('timestamp', int(time.time()))
         user_id = wechat_msg.get('user_id', '')
-        return hash(f"{timestamp}_{user_id}_{wechat_msg.get('message_id', '')}") & 0x7FFFFFFF
+        message_id = wechat_msg.get('message_id', '')
+        
+        # 使用MD5哈希生成稳定的消息ID
+        hash_input = f"{timestamp}_{user_id}_{message_id}"
+        md5_hash = hashlib.md5(hash_input.encode('utf-8')).hexdigest()
+        # 取前8位转换为整数，确保为正数
+        return int(md5_hash[:8], 16) & 0x7FFFFFFF
         
     def _convert_text_message(self, wechat_msg: Dict[str, Any]) -> Dict[str, Any]:
         """转换文本消息
@@ -179,7 +196,7 @@ class OneBotV11Converter:
                     image_base64 = base64.b64encode(image_bytes).decode('utf-8')
                     image_data['file'] = f"base64://{image_base64}"
             except Exception as e:
-                print(f"读取图片文件失败: {e}")
+                logger.error(f"读取图片文件失败: {e}")
                 image_data['file'] = image_path
         elif image_url:
             image_data['file'] = image_url
@@ -249,7 +266,7 @@ class OneBotV11Converter:
                     voice_base64 = base64.b64encode(voice_bytes).decode('utf-8')
                     voice_data['file'] = f"base64://{voice_base64}"
             except Exception as e:
-                print(f"读取语音文件失败: {e}")
+                logger.error(f"读取语音文件失败: {e}")
                 voice_data['file'] = voice_path
         else:
             voice_data['file'] = "[语音]"  # 占位符
@@ -376,7 +393,7 @@ class OneBotV11Converter:
             return None
             
         except Exception as e:
-            print(f"处理图片文件失败: {e}")
+            logger.error(f"处理图片文件失败: {e}")
             return None
             
     def _process_voice_file(self, file_data: str) -> Optional[str]:
@@ -413,7 +430,7 @@ class OneBotV11Converter:
             return None
             
         except Exception as e:
-            print(f"处理语音文件失败: {e}")
+            logger.error(f"处理语音文件失败: {e}")
             return None
             
     def _create_error_message(self, wechat_msg: Dict[str, Any], error: str) -> Dict[str, Any]:

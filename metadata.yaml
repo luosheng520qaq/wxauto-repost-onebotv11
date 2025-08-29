@@ -2,7 +2,7 @@
 name: "wxauto_repost"
 author: "汐灿"
 description: "微信消息转发框架插件 - 基于wxauto库和OneBotV11协议，支持微信消息与OneBotV11协议的双向转发"
-version: "1.0.0"
+version: "1.1.0"
 repo: "https://github.com/luosheng520qaq/wxauto-repost-onebotv11"
 
 # 插件依赖

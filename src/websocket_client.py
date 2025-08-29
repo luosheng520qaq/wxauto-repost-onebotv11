@@ -12,6 +12,16 @@ from typing import Dict, Any, Callable, Optional
 import websocket
 from queue import Queue, Empty
 
+try:
+    from astrbot.api import logger
+except ImportError:
+    # 独立运行模式的简单日志记录器
+    class SimpleLogger:
+        def info(self, msg): print(f"[INFO] {msg}")
+        def error(self, msg): print(f"[ERROR] {msg}")
+        def warning(self, msg): print(f"[WARNING] {msg}")
+    logger = SimpleLogger()
+
 class WebSocketClient:
     """反向WebSocket客户端"""
     
@@ -75,10 +85,10 @@ class WebSocketClient:
             # 获取WebSocket地址
             self.ws_url = self.config_manager.get('onebot.ws_url', '')
             if not self.ws_url:
-                print("错误: 未配置反向WebSocket地址")
+                logger.error("错误: 未配置反向WebSocket地址")
                 return False
                 
-            print(f"启动WebSocket客户端，连接地址: {self.ws_url}")
+            logger.info(f"启动WebSocket客户端，连接地址: {self.ws_url}")
             
             self.is_running = True
             self.reconnect_attempts = 0
@@ -94,12 +104,12 @@ class WebSocketClient:
             return True
             
         except Exception as e:
-            print(f"启动WebSocket客户端失败: {e}")
+            logger.error(f"启动WebSocket客户端失败: {e}")
             return False
             
     def stop(self):
         """停止WebSocket客户端"""
-        print("停止WebSocket客户端")
+        logger.info("停止WebSocket客户端")
         
         self.is_running = False
         
@@ -131,7 +141,7 @@ class WebSocketClient:
         """
         try:
             if not self.is_connected or not self.ws:
-                print("WebSocket未连接，消息加入发送队列")
+                logger.warning("WebSocket未连接，消息加入发送队列")
                 self.send_queue.put(message)
                 return False
                 
@@ -139,11 +149,11 @@ class WebSocketClient:
             json_data = json.dumps(message, ensure_ascii=False)
             self.ws.send(json_data)
             
-            print(f"发送消息: {message.get('post_type', 'unknown')}")
+            logger.info(f"发送消息: {message.get('post_type', 'unknown')}")
             return True
             
         except Exception as e:
-            print(f"发送消息失败: {e}")
+            logger.error(f"发送消息失败: {e}")
             # 将消息加入队列等待重发
             self.send_queue.put(message)
             return False
@@ -163,7 +173,7 @@ class WebSocketClient:
             return self.send_message(onebot_msg)
             
         except Exception as e:
-            print(f"❌ 发送微信消息失败: {e}")
+            logger.error(f"❌ 发送微信消息失败: {e}")
             return False
             
     def get_received_message(self) -> Optional[Dict[str, Any]]:
@@ -187,20 +197,20 @@ class WebSocketClient:
                 time.sleep(1)
                 
             except Exception as e:
-                print(f"连接循环异常: {e}")
+                logger.error(f"连接循环异常: {e}")
                 time.sleep(self.reconnect_interval)
                 
     def _connect(self):
         """建立WebSocket连接"""
         try:
-            print(f"尝试连接WebSocket: {self.ws_url}")
+            logger.info(f"尝试连接WebSocket: {self.ws_url}")
             
             # 准备连接头
             headers = {}
             access_token = self.config_manager.get('onebot.access_token', '')
             if access_token:
                 headers['Authorization'] = f'Bearer {access_token}'
-                print("已添加access_token认证")
+                logger.info("已添加access_token认证")
             
             # 添加OneBotV11标准要求的头部信息
             headers['X-Self-ID'] = '10001000'  # 机器人QQ号，可以从配置获取
@@ -220,12 +230,12 @@ class WebSocketClient:
             self.ws.run_forever()
             
         except Exception as e:
-            print(f"WebSocket连接失败: {e}")
+            logger.error(f"WebSocket连接失败: {e}")
             self._handle_reconnect()
             
     def _on_open(self, ws):
         """WebSocket连接打开回调"""
-        print("WebSocket连接已建立")
+        logger.info("WebSocket连接已建立")
         
         self.is_connected = True
         self.reconnect_attempts = 0
@@ -242,14 +252,14 @@ class WebSocketClient:
             try:
                 self.on_connect_callback()
             except Exception as e:
-                print(f"连接回调执行失败: {e}")
+                logger.error(f"连接回调执行失败: {e}")
                 
     def _on_message(self, ws, message):
         """WebSocket消息接收回调"""
         try:
             # 解析JSON消息
             data = json.loads(message)
-            print(f"收到消息: {data.get('action', 'unknown')}")
+            logger.info(f"收到消息: {data.get('action', 'unknown')}")
             
             # 将消息加入接收队列
             self.receive_queue.put(data)
@@ -259,20 +269,20 @@ class WebSocketClient:
                 try:
                     self.on_message_callback(data)
                 except Exception as e:
-                    print(f"消息回调执行失败: {e}")
+                    logger.error(f"消息回调执行失败: {e}")
                     
         except json.JSONDecodeError as e:
-            print(f"解析消息JSON失败: {e}")
+            logger.error(f"解析消息JSON失败: {e}")
         except Exception as e:
-            print(f"处理接收消息失败: {e}")
+            logger.error(f"处理接收消息失败: {e}")
             
     def _on_error(self, ws, error):
         """WebSocket错误回调"""
-        print(f"WebSocket错误: {error}")
+        logger.error(f"WebSocket错误: {error}")
         
     def _on_close(self, ws, close_status_code, close_msg):
         """WebSocket连接关闭回调"""
-        print(f"WebSocket连接已关闭: {close_status_code} - {close_msg}")
+        logger.info(f"WebSocket连接已关闭: {close_status_code} - {close_msg}")
         
         self.is_connected = False
         
@@ -281,7 +291,7 @@ class WebSocketClient:
             try:
                 self.on_disconnect_callback()
             except Exception as e:
-                print(f"断开连接回调执行失败: {e}")
+                logger.error(f"断开连接回调执行失败: {e}")
                 
         # 如果还在运行状态，尝试重连
         if self.is_running:
@@ -290,11 +300,11 @@ class WebSocketClient:
     def _handle_reconnect(self):
         """处理重连"""
         if self.reconnect_attempts >= self.max_reconnect_attempts:
-            print(f"达到最大重连次数({self.max_reconnect_attempts})，停止重连")
+            logger.warning(f"达到最大重连次数({self.max_reconnect_attempts})，停止重连")
             return
             
         self.reconnect_attempts += 1
-        print(f"准备重连 ({self.reconnect_attempts}/{self.max_reconnect_attempts})，{self.reconnect_interval}秒后重试")
+        logger.info(f"准备重连 ({self.reconnect_attempts}/{self.max_reconnect_attempts})，{self.reconnect_interval}秒后重试")
         
         time.sleep(self.reconnect_interval)
         
@@ -307,7 +317,7 @@ class WebSocketClient:
             except Empty:
                 break
             except Exception as e:
-                print(f"处理发送队列消息失败: {e}")
+                logger.error(f"处理发送队列消息失败: {e}")
                 
     def _heartbeat_loop(self):
         """心跳循环"""
@@ -327,7 +337,7 @@ class WebSocketClient:
                 time.sleep(5)  # 每5秒检查一次
                 
             except Exception as e:
-                print(f"心跳循环异常: {e}")
+                logger.error(f"心跳循环异常: {e}")
                 time.sleep(5)
                 
     def get_status(self) -> Dict[str, Any]:
@@ -350,11 +360,11 @@ class WebSocketClient:
         """更新配置"""
         try:
             # 获取新的WebSocket地址
-            new_ws_url = self.config_manager.get('websocket.reverse_ws_url', '')
+            new_ws_url = self.config_manager.get('onebot.ws_url', '')
             
             # 如果地址发生变化，重新连接
             if new_ws_url != self.ws_url and new_ws_url:
-                print(f"WebSocket地址已更新: {self.ws_url} -> {new_ws_url}")
+                logger.info(f"WebSocket地址已更新: {self.ws_url} -> {new_ws_url}")
                 self.ws_url = new_ws_url
                 
                 # 重新连接
@@ -367,11 +377,11 @@ class WebSocketClient:
             self.heartbeat_interval = self.config_manager.get('onebot.heartbeat_interval', 30)
             
             # 更新重连配置
-            self.reconnect_interval = self.config_manager.get('websocket.reconnect_interval', 5)
-            self.max_reconnect_attempts = self.config_manager.get('websocket.max_reconnect_attempts', 10)
+            self.reconnect_interval = self.config_manager.get('onebot.reconnect_interval', 5)
+            self.max_reconnect_attempts = self.config_manager.get('onebot.max_reconnect_attempts', 10)
             
         except Exception as e:
-            print(f"更新WebSocket配置失败: {e}")
+            logger.error(f"更新WebSocket配置失败: {e}")
             
     def send_api_response(self, echo: str, data: Any = None, retcode: int = 0, status: str = "ok"):
         """发送API响应
@@ -405,7 +415,7 @@ class WebSocketClient:
             echo = request.get('echo', '')
             params = request.get('params', {})
             
-            print(f"收到API请求: {action}")
+            logger.info(f"收到API请求: {action}")
             
             # 根据不同的action处理请求
             if action == 'get_login_info':
@@ -437,7 +447,7 @@ class WebSocketClient:
             return True
             
         except Exception as e:
-            print(f"处理API请求失败: {e}")
+            logger.error(f"处理API请求失败: {e}")
             if 'echo' in locals():
                 self.send_api_response(echo, None, 1500, "failed")
             return False

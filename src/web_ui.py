@@ -1015,7 +1015,7 @@ async function addMonitorUser() {
     }
     
     // 验证QQ号格式（纯数字）
-    if (!/^\\d+$/.test(user_id)) {
+    if (!/^\d+$/.test(user_id)) {
         showToast('QQ号必须是纯数字', 'error');
         return;
     }

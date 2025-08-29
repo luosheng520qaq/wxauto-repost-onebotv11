@@ -30,15 +30,20 @@ try:
     ASTRBOT_AVAILABLE = True
 except ImportError:
     ASTRBOT_AVAILABLE = False
-    import logging
-    logger = logging.getLogger(__name__)
+    # 在独立运行模式下，创建一个简单的日志记录器
+    class SimpleLogger:
+        def info(self, msg): print(f"[INFO] {msg}")
+        def error(self, msg): print(f"[ERROR] {msg}")
+        def warning(self, msg): print(f"[WARNING] {msg}")
+        def debug(self, msg): print(f"[DEBUG] {msg}")
+    logger = SimpleLogger()
 
 class WxAutoOneBotApp:
     """微信消息转发应用主类"""
     
     def __init__(self):
         """初始化应用"""
-        print("初始化微信消息转发框架...")
+        logger.info("初始化微信消息转发框架...")
         
         # 初始化配置管理器
         self.config_manager = ConfigManager()
@@ -56,7 +61,7 @@ class WxAutoOneBotApp:
     def initialize_components(self):
         """初始化所有组件"""
         try:
-            print("初始化组件...")
+            logger.info("初始化组件...")
             
             # 初始化OneBotV11转换器
             self.onebot_converter = OneBotV11Converter(self.config_manager)
@@ -87,19 +92,17 @@ class WxAutoOneBotApp:
             # 设置微信监听器的消息回调
             self.wechat_monitor.set_message_callback(self.message_handler.handle_wechat_message)
             
-            print("组件初始化完成")
+            logger.info("组件初始化完成")
             return True
             
         except Exception as e:
-            print(f"初始化组件失败: {e}")
+            logger.error(f"初始化组件失败: {e}")
             return False
         
     def start(self):
         """启动应用"""
         try:
-            print("🚀 启动微信消息转发框架...")
-            import sys
-            sys.stdout.flush()
+            logger.info("🚀 启动微信消息转发框架...")
             
             # 初始化组件
             if not self.initialize_components():
@@ -114,41 +117,36 @@ class WxAutoOneBotApp:
             # 启动WebSocket客户端（如果配置了地址）
             ws_url = self.config_manager.get('onebot.ws_url', '')
             if ws_url and self.websocket_client:
-                print(f"🔗 启动WebSocket客户端: {ws_url}")
-                sys.stdout.flush()
+                logger.info(f"🔗 启动WebSocket客户端: {ws_url}")
                 self.websocket_client.start()
             else:
-                print("⚠️  未配置WebSocket地址，跳过客户端启动")
-                sys.stdout.flush()
+                logger.warning("⚠️  未配置WebSocket地址，跳过客户端启动")
                 
             # 启动微信监听器（如果有监听用户）
             monitored_users = self.config_manager.get('wechat.monitor_users', [])
             if monitored_users and self.wechat_monitor:
-                print(f"👂 启动微信监听器，监听用户: {[user.get('nickname') if isinstance(user, dict) else user for user in monitored_users]}")
-                sys.stdout.flush()
+                logger.info(f"👂 启动微信监听器，监听用户: {[user.get('nickname') if isinstance(user, dict) else user for user in monitored_users]}")
                 self.wechat_monitor.start()
             else:
-                print("⚠️  未配置监听用户，跳过监听器启动")
-                sys.stdout.flush()
+                logger.warning("⚠️  未配置监听用户，跳过监听器启动")
                 
             # 启动Web UI（最后启动，避免输出被覆盖）
             if self.web_ui:
-                web_port = self.config_manager.get('web.port', 10001)
-                print(f"🌐 启动Web UI，端口: {web_port}")
-                print("📝 注意：Web UI启动后，日志输出可能会被Flask覆盖")
-                sys.stdout.flush()
+                web_port = self.config_manager.get('webui.port', 10001)
+                logger.info(f"🌐 启动Web UI，端口: {web_port}")
+                logger.info("📝 注意：Web UI启动后，日志输出可能会被Flask覆盖")
                 self.web_ui.start()
                 
             return True
             
         except Exception as e:
-            print(f"❌ 启动应用失败: {e}")
+            logger.error(f"❌ 启动应用失败: {e}")
             return False
             
     def stop(self):
         """停止应用"""
         try:
-            print("🛑 停止微信消息转发框架...")
+            logger.info("🛑 停止微信消息转发框架...")
             
             self.is_running = False
             
@@ -165,15 +163,15 @@ class WxAutoOneBotApp:
             if self.web_ui:
                 self.web_ui.stop()
             
-            print("✅ 应用已停止")
+            logger.info("✅ 应用已停止")
             
         except Exception as e:
-            print(f"❌ 停止应用失败: {e}")
+            logger.error(f"❌ 停止应用失败: {e}")
             
     def restart_services(self):
         """重启服务（配置更新后）"""
         try:
-            print("重启服务...")
+            logger.info("重启服务...")
             
             # 停止相关服务
             if self.wechat_monitor:
@@ -185,18 +183,18 @@ class WxAutoOneBotApp:
             time.sleep(2)  # 等待服务完全停止
             
             # 重新启动服务
-            ws_url = self.config_manager.get('websocket.reverse_ws_url', '')
+            ws_url = self.config_manager.get('onebot.ws_url', '')
             if ws_url and self.websocket_client:
                 self.websocket_client.start()
                 
-            monitored_users = self.config_manager.get('monitor.users', [])
+            monitored_users = self.config_manager.get('wechat.monitor_users', [])
             if monitored_users and self.wechat_monitor:
                 self.wechat_monitor.start()
                 
-            print("服务重启完成")
+            logger.info("服务重启完成")
             
         except Exception as e:
-            print(f"重启服务失败: {e}")
+            logger.error(f"重启服务失败: {e}")
             
     def get_status(self):
         """获取应用状态"""
@@ -210,13 +208,13 @@ class WxAutoOneBotApp:
             
     def signal_handler(self, signum, frame):
         """信号处理器"""
-        print(f"\n收到信号 {signum}，正在停止应用...")
+        logger.info(f"\n收到信号 {signum}，正在停止应用...")
         self.stop()
         sys.exit(0)
 
 # AstrBot插件类
 if ASTRBOT_AVAILABLE:
-    @register("wxauto_repost", "AstrBot Team", "微信消息转发框架插件 - 基于wxauto库和OneBotV11协议", "1.0.0", "https://github.com/luosheng520qaq/wxauto-repost-onebotv11")
+    @register("wxauto_repost", "AstrBot Team", "微信消息转发框架插件 - 基于wxauto库和OneBotV11协议", "1.1.0", "https://github.com/luosheng520qaq/wxauto-repost-onebotv11")
     class WxAutoRepostPlugin(Star):
         """微信消息转发框架AstrBot插件"""
         
@@ -261,12 +259,12 @@ if ASTRBOT_AVAILABLE:
 
 def main():
     """主函数 - 独立运行模式"""
-    print("="*50)
-    print("🤖 微信消息转发框架 v1.0")
-    print("📱 基于wxauto库和OneBotV11协议")
+    logger.info("="*50)
+    logger.info("🤖 微信消息转发框架 v1.0")
+    logger.info("📱 基于wxauto库和OneBotV11协议")
     if ASTRBOT_AVAILABLE:
-        print("🔌 支持AstrBot插件模式")
-    print("="*50)
+        logger.info("🔌 支持AstrBot插件模式")
+    logger.info("="*50)
     
     # 创建应用实例
     app = WxAutoOneBotApp()
@@ -278,27 +276,27 @@ def main():
     try:
         # 启动应用
         if app.start():
-            print("\n✅ 应用启动成功！")
-            print("🌐 访问 http://localhost:10001 进行配置")
-            print("⏹️  按 Ctrl+C 停止应用")
-            print("\n📋 使用说明:")
-            print("  1️⃣  在Web界面中配置监听用户昵称")
-            print("  2️⃣  配置反向WebSocket地址")
-            print("  3️⃣  启动微信监听和WebSocket连接")
-            print("  4️⃣  框架将自动转发消息")
+            logger.info("\n✅ 应用启动成功！")
+            logger.info("🌐 访问 http://localhost:10001 进行配置")
+            logger.info("⏹️  按 Ctrl+C 停止应用")
+            logger.info("\n📋 使用说明:")
+            logger.info("  1️⃣  在Web界面中配置监听用户昵称")
+            logger.info("  2️⃣  配置反向WebSocket地址")
+            logger.info("  3️⃣  启动微信监听和WebSocket连接")
+            logger.info("  4️⃣  框架将自动转发消息")
             
             # 保持应用运行
             while app.is_running:
                 time.sleep(1)
         else:
-            print("❌ 应用启动失败")
+            logger.error("❌ 应用启动失败")
             sys.exit(1)
             
     except KeyboardInterrupt:
-        print("\n⏹️  用户中断，正在停止应用...")
+        logger.info("\n⏹️  用户中断，正在停止应用...")
         app.stop()
     except Exception as e:
-        print(f"❌ 应用运行异常: {e}")
+        logger.error(f"❌ 应用运行异常: {e}")
         app.stop()
         sys.exit(1)
 

@@ -12,10 +12,20 @@ from pathlib import Path
 import os
 
 try:
+    from astrbot.api import logger
+except ImportError:
+    # 独立运行模式的简单日志记录器
+    class SimpleLogger:
+        def info(self, msg): print(f"[INFO] {msg}")
+        def error(self, msg): print(f"[ERROR] {msg}")
+        def warning(self, msg): print(f"[WARNING] {msg}")
+    logger = SimpleLogger()
+
+try:
     import pythoncom
     from wxauto import WeChat
 except ImportError:
-    print("警告: wxauto库未安装，请运行 pip install wxauto")
+    logger.warning("警告: wxauto库未安装，请运行 pip install wxauto")
     WeChat = None
     pythoncom = None
 
@@ -84,11 +94,11 @@ class WeChatMonitor:
             是否启动成功
         """
         if self.running:
-            print("微信监听器已在运行中")
+            logger.info("微信监听器已在运行中")
             return True
             
         if WeChat is None:
-            print("错误: wxauto库未安装，无法启动微信监听")
+            logger.error("错误: wxauto库未安装，无法启动微信监听")
             return False
             
         try:
@@ -101,7 +111,7 @@ class WeChatMonitor:
             
             # 检查微信是否已登录
             if not self._check_wechat_login():
-                print("错误: 微信未登录或无法连接")
+                logger.error("错误: 微信未登录或无法连接")
                 self.running = False
                 return False
                 
@@ -111,11 +121,11 @@ class WeChatMonitor:
             self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self.monitor_thread.start()
             
-            print("微信监听器启动成功")
+            logger.info("微信监听器启动成功")
             return True
             
         except Exception as e:
-            print(f"启动微信监听器失败: {e}")
+            logger.error(f"启动微信监听器失败: {e}")
             self.running = False
             return False
             
@@ -126,7 +136,7 @@ class WeChatMonitor:
             是否停止成功
         """
         if not self.running:
-            print("微信监听器未在运行")
+            logger.info("微信监听器未在运行")
             return True
             
         self.running = False
@@ -143,7 +153,7 @@ class WeChatMonitor:
                 pass
             
         self.wechat = None
-        print("微信监听器已停止")
+        logger.info("微信监听器已停止")
         return True
         
     def is_running(self) -> bool:
@@ -164,11 +174,11 @@ class WeChatMonitor:
             # 简单检查微信客户端是否可用
             # 如果WeChat对象创建成功，通常表示微信已登录
             if self.wechat is not None:
-                print("微信客户端连接成功")
+                logger.info("微信客户端连接成功")
                 return True
             return False
         except Exception as e:
-            print(f"检查微信登录状态失败: {e}")
+            logger.error(f"检查微信登录状态失败: {e}")
             return False
             
     def _on_message_callback(self, msg, chat):
@@ -196,16 +206,16 @@ class WeChatMonitor:
             
             # 过滤wxauto库内部的调试消息
             if self._is_wxauto_debug_message(content):
-                print(f"🚫 过滤wxauto调试消息: {content[:30]}{'...' if len(content) > 30 else ''}")
+                logger.info(f"🚫 过滤wxauto调试消息: {content[:30]}{'...' if len(content) > 30 else ''}")
                 return
                 
-            print(f"收到来自 {username} 的消息: {content}")
+            logger.info(f"收到来自 {username} 的消息: {content}")
             
             # 处理消息
             self._process_message(username, msg)
             
         except Exception as e:
-            print(f"处理回调消息时出错: {e}")
+            logger.error(f"处理回调消息时出错: {e}")
     
     def _monitor_loop(self):
         """监听循环"""
@@ -214,7 +224,7 @@ class WeChatMonitor:
             if pythoncom:
                 pythoncom.CoInitialize()
                 
-            print("开始监听微信消息...")
+            logger.info("开始监听微信消息...")
             
             # 添加监听用户
             self._setup_listeners()
@@ -224,7 +234,7 @@ class WeChatMonitor:
                 time.sleep(1)  # 保持程序运行
                     
         except Exception as e:
-            print(f"监听循环异常退出: {e}")
+            logger.error(f"监听循环异常退出: {e}")
         finally:
             # 清理COM组件
             if pythoncom:
@@ -240,7 +250,7 @@ class WeChatMonitor:
             monitor_users = self.config_manager.get('wechat.monitor_users', [])
             
             if not monitor_users:
-                print("未配置监听用户")
+                logger.warning("未配置监听用户")
                 return
                 
             # 为每个用户添加监听
@@ -257,12 +267,12 @@ class WeChatMonitor:
                     if nickname:
                         # 使用回调函数方式监听消息
                         self.wechat.AddListenChat(nickname=nickname, callback=self._on_message_callback)
-                        print(f"已添加监听用户: {nickname}")
+                        logger.info(f"已添加监听用户: {nickname}")
                 except Exception as e:
-                    print(f"添加监听用户失败: {e}")
+                    logger.error(f"添加监听用户失败: {e}")
                 
         except Exception as e:
-            print(f"设置监听用户失败: {e}")
+            logger.error(f"设置监听用户失败: {e}")
             
     def _get_message_timestamp(self, message) -> int:
         """获取消息时间戳
@@ -307,7 +317,7 @@ class WeChatMonitor:
             return nickname
             
         except Exception as e:
-            print(f"查找用户ID失败: {e}")
+            logger.error(f"查找用户ID失败: {e}")
             return nickname
             
     def _get_message_id(self, message) -> str:
@@ -347,20 +357,20 @@ class WeChatMonitor:
                 # 检查是否是刚刚发送的消息（防止循环）
                 content = parsed_msg.get('content', '')
                 if self._is_recently_sent_message(content):
-                    print(f"⏭️  跳过回显消息: {content[:30]}{'...' if len(content) > 30 else ''}")
+                    logger.info(f"⏭️  跳过回显消息: {content[:30]}{'...' if len(content) > 30 else ''}")
                     return
                     
-                print(f"📨 {username}: {content[:50]}{'...' if len(content) > 50 else ''}")
+                logger.info(f"📨 {username}: {content[:50]}{'...' if len(content) > 50 else ''}")
                 
                 # 调用消息回调函数
                 if self.message_callback:
                     try:
                         self.message_callback(parsed_msg)
                     except Exception as e:
-                        print(f"消息回调执行失败: {e}")
+                        logger.error(f"消息回调执行失败: {e}")
             
         except Exception as e:
-            print(f"❌ 处理消息失败: {e}")
+            logger.error(f"❌ 处理消息失败: {e}")
             
     def _parse_message(self, username: str, message) -> Optional[Dict[str, Any]]:
         """解析消息
@@ -396,7 +406,7 @@ class WeChatMonitor:
                 
                 # 过滤系统提示消息
                 if self._is_system_message(content):
-                    print(f"🚫 过滤系统消息: {content[:30]}{'...' if len(content) > 30 else ''}")
+                    logger.info(f"🚫 过滤系统消息: {content[:30]}{'...' if len(content) > 30 else ''}")
                     return None
                 
                 parsed.update({
@@ -449,7 +459,7 @@ class WeChatMonitor:
             return parsed
             
         except Exception as e:
-            print(f"❌ 解析消息失败: {e}")
+            logger.error(f"❌ 解析消息失败: {e}")
             return None
             
     def _save_image(self, message) -> Optional[str]:
@@ -485,7 +495,7 @@ class WeChatMonitor:
             return None
             
         except Exception as e:
-            print(f"保存图片失败: {e}")
+            logger.error(f"保存图片失败: {e}")
             return None
             
     def _save_file(self, message) -> Optional[str]:
@@ -520,7 +530,7 @@ class WeChatMonitor:
             return None
             
         except Exception as e:
-            print(f"保存文件失败: {e}")
+            logger.error(f"保存文件失败: {e}")
             return None
             
     def _save_voice(self, message) -> Optional[str]:
@@ -552,7 +562,7 @@ class WeChatMonitor:
             return None
             
         except Exception as e:
-            print(f"保存语音失败: {e}")
+            logger.error(f"保存语音失败: {e}")
             return None
             
     def _is_recently_sent_message(self, content: str) -> bool:
@@ -580,7 +590,7 @@ class WeChatMonitor:
             return content in self.sent_message_cache
             
         except Exception as e:
-            print(f"检查消息缓存失败: {e}")
+            logger.error(f"检查消息缓存失败: {e}")
             return False
             
     def _record_sent_message(self, content: str):
@@ -592,7 +602,7 @@ class WeChatMonitor:
         try:
             self.sent_message_cache[content] = time.time()
         except Exception as e:
-            print(f"⚠️  记录发送消息失败: {e}")
+            logger.error(f"⚠️  记录发送消息失败: {e}")
             
     def _is_wxauto_debug_message(self, content: str) -> bool:
         """判断是否为wxauto库的调试消息
@@ -627,7 +637,7 @@ class WeChatMonitor:
             return False
             
         except Exception as e:
-            print(f"⚠️  判断wxauto调试消息失败: {e}")
+            logger.error(f"⚠️  判断wxauto调试消息失败: {e}")
             return False
     
     def _is_system_message(self, content: str) -> bool:
@@ -647,7 +657,7 @@ class WeChatMonitor:
             content_lower = content_clean.lower()
             
             # 调试输出
-            print(f"🔍 检查消息是否为系统消息: '{content_clean[:50]}{'...' if len(content_clean) > 50 else ''}'")
+            logger.info(f"🔍 检查消息是否为系统消息: '{content_clean[:50]}{'...' if len(content_clean) > 50 else ''}'")
             
             # 系统消息关键词列表 - 使用更严格的匹配
             system_keywords = [
@@ -672,7 +682,7 @@ class WeChatMonitor:
             # 检查系统消息关键词 - 精确匹配和包含匹配
             for keyword in system_keywords:
                 if keyword.lower() in content_lower:
-                    print(f"🚫 匹配到系统消息关键词: '{keyword}'")
+                    logger.info(f"🚫 匹配到系统消息关键词: '{keyword}'")
                     return True
             
             # 更严格的正则表达式匹配
@@ -694,7 +704,7 @@ class WeChatMonitor:
             
             for pattern in bracket_patterns:
                 if re.search(pattern, content_clean, re.IGNORECASE | re.MULTILINE):
-                    print(f"🚫 匹配到括号格式系统消息: 模式 '{pattern}'")
+                    logger.info(f"🚫 匹配到括号格式系统消息: 模式 '{pattern}'")
                     return True
             
             # 匹配纯符号和省略号消息
@@ -708,7 +718,7 @@ class WeChatMonitor:
             
             for pattern in symbol_patterns:
                 if re.match(pattern, content_clean):
-                    print(f"🚫 匹配到符号格式系统消息: 模式 '{pattern}'")
+                    logger.info(f"🚫 匹配到符号格式系统消息: 模式 '{pattern}'")
                     return True
             
             # 检查是否包含"新消息"、"历史"等关键词的短消息
@@ -725,7 +735,7 @@ class WeChatMonitor:
             if len(content_clean) < 20:
                 for pattern in short_system_patterns:
                     if re.search(pattern, content_lower):
-                        print(f"🚫 匹配到短系统消息: 模式 '{pattern}'")
+                        logger.info(f"🚫 匹配到短系统消息: 模式 '{pattern}'")
                         return True
             
             # 注释掉纯数字和短纯字母的过滤，只保留真正的系统消息过滤
@@ -737,11 +747,11 @@ class WeChatMonitor:
             #     print(f"🚫 匹配到短纯字母消息")
             #     return True
             
-            print(f"✅ 消息通过系统消息过滤")
+            logger.info(f"✅ 消息通过系统消息过滤")
             return False
             
         except Exception as e:
-            print(f"⚠️  判断系统消息失败: {e}")
+            logger.error(f"⚠️  判断系统消息失败: {e}")
             return False
             
     def send_message(self, username: str, content: str, msg_type: str = 'text') -> bool:
@@ -757,7 +767,7 @@ class WeChatMonitor:
         """
         try:
             if not self.wechat or not self.running:
-                print("⚠️  微信监听器未运行")
+                logger.warning("⚠️  微信监听器未运行")
                 return False
                 
             # 根据消息类型记录不同的内容用于回显判断
@@ -789,11 +799,11 @@ class WeChatMonitor:
                 self._record_sent_message(content)
                 self.wechat.SendMsg(content, who=username)
                 
-            print(f"✅ 发送至 {username}: {content[:30]}{'...' if len(content) > 30 else ''}")
+            logger.info(f"✅ 发送至 {username}: {content[:30]}{'...' if len(content) > 30 else ''}")
             return True
             
         except Exception as e:
-            print(f"❌ 发送消息失败: {e}")
+            logger.error(f"❌ 发送消息失败: {e}")
             return False
             
     def send_image(self, username: str, image_path: str) -> bool:
@@ -838,5 +848,5 @@ class WeChatMonitor:
                 return []
                 
         except Exception as e:
-            print(f"获取好友列表失败: {e}")
+            logger.error(f"获取好友列表失败: {e}")
             return []
