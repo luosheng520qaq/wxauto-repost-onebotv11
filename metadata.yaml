@@ -1,0 +1,80 @@
+# AstrBot插件元数据
+name: "wxauto_repost"
+author: "AstrBot Team"
+description: "微信消息转发框架插件 - 基于wxauto库和OneBotV11协议，支持微信消息与OneBotV11协议的双向转发"
+version: "1.0.0"
+repo: "https://github.com/luosheng520qaq/wxauto-repost-onebotv11"
+
+# 插件依赖
+dependencies:
+  - "wxauto>=3.9.11.17"
+  - "websocket-client>=1.6.0"
+  - "flask>=2.3.0"
+  - "requests>=2.31.0"
+
+# 插件配置
+config:
+  # 微信监听配置
+  wechat:
+    monitor_users: []  # 监听的微信用户昵称列表
+    enable_voice: false  # 是否启用语音消息处理
+    enable_image: true   # 是否启用图片消息处理
+    enable_file: true    # 是否启用文件消息处理
+  
+  # WebSocket配置
+  websocket:
+    url: "ws://127.0.0.1:7799/ws"  # 反向WebSocket地址
+    reconnect_interval: 5  # 重连间隔（秒）
+    max_reconnect_attempts: 10  # 最大重连次数
+  
+  # Web UI配置
+  web_ui:
+    host: "0.0.0.0"  # Web UI监听地址
+    port: 10001       # Web UI端口
+    enable: true      # 是否启用Web UI
+  
+  # 消息处理配置
+  message:
+    enable_voice: false  # 是否处理语音消息
+    cache_expire_time: 300  # 消息缓存过期时间（秒）
+    max_message_length: 4096  # 最大消息长度
+
+# 插件标签
+tags:
+  - "微信"
+  - "消息转发"
+  - "OneBotV11"
+  - "wxauto"
+
+# 最低AstrBot版本要求
+min_astrbot_version: "3.0.0"
+
+# 插件类型
+type: "service"  # 服务类插件
+
+# 是否需要管理员权限
+require_admin: false
+
+# 插件说明
+long_description: |
+  微信消息转发框架插件，基于wxauto库和OneBotV11协议实现微信消息的双向转发功能。
+  
+  主要功能：
+  - 监听指定微信用户的消息
+  - 将微信消息转换为OneBotV11格式并转发
+  - 接收OneBotV11消息并发送到微信
+  - 支持文本、图片、文件、语音等多种消息类型
+  - 提供Web UI进行配置管理
+  - 支持消息回显阻断，避免消息循环
+  
+  使用方法：
+  1. 安装插件后，访问 http://localhost:10001 进行配置
+  2. 在Web界面中设置要监听的微信用户昵称
+  3. 配置反向WebSocket地址
+  4. 启动微信监听和WebSocket连接
+  5. 框架将自动处理消息转发
+  
+  注意事项：
+  - 需要在Windows系统上运行
+  - 需要安装并登录微信PC版
+  - 确保微信窗口可见且未被其他程序遮挡

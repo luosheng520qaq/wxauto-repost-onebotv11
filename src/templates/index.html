@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>微信消息转发到OneBotV11 - 配置管理</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-robot"></i> 微信消息转发到OneBotV11</h1>
+            <div class="status-bar">
+                <div class="status-item" id="wechat-status">
+                    <i class="fas fa-comments"></i>
+                    <span>微信监听: <span class="status-text">未知</span></span>
+                </div>
+                <div class="status-item" id="onebot-status">
+                    <i class="fas fa-plug"></i>
+                    <span>OneBot: <span class="status-text">未知</span></span>
+                </div>
+            </div>
+        </header>
+        
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="config">配置管理</button>
+            <button class="tab-button" data-tab="monitor">监听用户</button>
+            <button class="tab-button" data-tab="status">系统状态</button>
+            <button class="tab-button" data-tab="logs">日志查看</button>
+        </nav>
+        
+        <main>
+            <!-- 配置管理标签页 -->
+            <div class="tab-content active" id="config-tab">
+                <div class="config-section">
+                    <h2><i class="fas fa-cog"></i> 基础配置</h2>
+                    
+                    <div class="config-group">
+                        <h3>WebUI设置</h3>
+                        <div class="form-group">
+                            <label for="webui-port">端口:</label>
+                            <input type="number" id="webui-port" min="1" max="65535" value="10001">
+                        </div>
+                    </div>
+                    
+                    <div class="config-group">
+                        <h3>微信设置</h3>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="wechat-enabled"> 启用微信监听
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="check-interval">检查间隔(秒):</label>
+                            <input type="number" id="check-interval" min="0.1" step="0.1" value="1.0">
+                        </div>
+                    </div>
+                    
+                    <div class="config-group">
+                        <h3>OneBotV11设置</h3>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="onebot-enabled"> 启用OneBot客户端
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="ws-url">反向WebSocket地址:</label>
+                            <input type="text" id="ws-url" placeholder="ws://localhost:10001/ws">
+                        </div>
+                        <div class="form-group">
+                            <label for="access-token">访问令牌:</label>
+                            <input type="password" id="access-token" placeholder="可选">
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
+                        <button class="btn btn-secondary" onclick="loadConfig()">重新加载</button>
+                        <button class="btn btn-danger" onclick="resetConfig()">重置为默认</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 监听用户标签页 -->
+            <div class="tab-content" id="monitor-tab">
+                <div class="monitor-section">
+                    <h2><i class="fas fa-users"></i> 监听用户管理</h2>
+                    
+                    <div class="add-user-form">
+                        <div class="form-group">
+                            <label for="new-username">添加监听用户:</label>
+                            <div class="input-group">
+                                <input type="text" id="new-username" placeholder="输入微信用户昵称">
+                                <input type="text" id="new-userid" placeholder="输入QQ号">
+                                <button class="btn btn-primary" onclick="addMonitorUser()">添加</button>
+                            </div>
+                            <div class="form-help">
+                                <small>请输入微信昵称和对应的QQ号，用于消息转发时的用户ID映射</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="user-list">
+                        <h3>当前监听用户列表:</h3>
+                        <ul id="monitor-users-list">
+                            <!-- 动态加载用户列表 -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 系统状态标签页 -->
+            <div class="tab-content" id="status-tab">
+                <div class="status-section">
+                    <h2><i class="fas fa-chart-line"></i> 系统状态</h2>
+                    
+                    <div class="status-cards">
+                        <div class="status-card">
+                            <h3>微信监听</h3>
+                            <div class="status-info" id="wechat-info">
+                                <p>状态: <span id="wechat-running">未知</span></p>
+                                <p>监听用户数: <span id="wechat-users-count">0</span></p>
+                            </div>
+                            <div class="control-buttons">
+                                <button class="btn btn-success" onclick="controlService('wechat', 'start')">启动</button>
+                                <button class="btn btn-danger" onclick="controlService('wechat', 'stop')">停止</button>
+                            </div>
+                        </div>
+                        
+                        <div class="status-card">
+                            <h3>OneBot客户端</h3>
+                            <div class="status-info" id="onebot-info">
+                                <p>状态: <span id="onebot-connected">未知</span></p>
+                                <p>WebSocket地址: <span id="onebot-url">未配置</span></p>
+                            </div>
+                            <div class="control-buttons">
+                                <button class="btn btn-success" onclick="controlService('onebot', 'start')">启动</button>
+                                <button class="btn btn-danger" onclick="controlService('onebot', 'stop')">停止</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 日志查看标签页 -->
+            <div class="tab-content" id="logs-tab">
+                <div class="logs-section">
+                    <h2><i class="fas fa-file-alt"></i> 系统日志</h2>
+                    <div class="log-container">
+                        <pre id="log-content">日志功能开发中...</pre>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="refreshLogs()">刷新日志</button>
+                        <button class="btn btn-secondary" onclick="clearLogs()">清空日志</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- 消息提示 -->
+    <div id="message-toast" class="toast"></div>
+    
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

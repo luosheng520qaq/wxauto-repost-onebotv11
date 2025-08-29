@@ -1,0 +1,40 @@
+{
+  "webui": {
+    "host": "0.0.0.0",
+    "port": 10001,
+    "debug": false
+  },
+  "wechat": {
+    "enabled": true,
+    "monitor_users": [
+      {
+        "nickname": "汐灿",
+        "user_id": "10001"
+      }
+    ],
+    "check_interval": 1,
+    "auto_reply": false
+  },
+  "onebot": {
+    "enabled": true,
+    "ws_url": "ws://192.168.2.7:7799/ws",
+    "access_token": "",
+    "reconnect_interval": 5,
+    "heartbeat_interval": 30,
+    "self_id": "wxauto_bot"
+  },
+  "message": {
+    "max_length": 4096,
+    "enable_image": true,
+    "enable_file": true,
+    "enable_voice": false,
+    "image_cache_dir": "cache/images",
+    "file_cache_dir": "cache/files"
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/app.log",
+    "max_size": "10MB",
+    "backup_count": 5
+  }
+}
